@@ -56,6 +56,9 @@ func (my *Mysql) initial() {
 		panic("err")
 	}
 
+	db.SetMaxOpenConns(my.maxOpenConns)
+	db.SetMaxIdleConns(my.maxIdleConns)
+
 	my.DB = db
 }
 
