@@ -13,6 +13,7 @@ type Mysql struct {
 	User     string `env:""`
 	Password string `env:""`
 	DbName   string `env:""`
+	Extra    string `env:""`
 
 	maxOpenConns int
 	maxIdleConns int
@@ -37,6 +38,13 @@ func (my *Mysql) SetDefaults() {
 		my.maxIdleConns = 5
 	}
 
+	if my.Extra == "" {
+		my.Extra = "charset=utf8mb4&parseTime=True"
+	}
+}
+
+func (my *Mysql) Init() {
+	my.initial()
 }
 
 func (my *Mysql) initial() {
@@ -44,28 +52,24 @@ func (my *Mysql) initial() {
 		return
 	}
 
-	dsnTmpl := "%s:%s@%s(%s:%d)/%s?charset=utf8mb4&parseTime=True"
-	dsn := fmt.Sprintf(dsnTmpl,
-		my.User, my.Password,
-		my.Host, my.Port,
-		my.DbName,
-	)
+	my.SetDefaults()
 
-	db, err := conn(dsn)
+	db, err := my.conn()
 	if err != nil {
-		panic("err")
+		err = fmt.Errorf("dsn: %s, err: %v", my.dsn(), err)
+		panic(err)
 	}
-
-	db.SetMaxOpenConns(my.maxOpenConns)
-	db.SetMaxIdleConns(my.maxIdleConns)
 
 	my.DB = db
 }
 
-func conn(dsn string) (*sql.DB, error) {
+func (my *Mysql) conn() (*sql.DB, error) {
+
+	dsn := my.dsn()
+
 	db, err := sql.Open("mysql", dsn)
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 
 	err = db.Ping()
@@ -73,5 +77,19 @@ func conn(dsn string) (*sql.DB, error) {
 		return db, fmt.Errorf("db ping faild: %w", err)
 	}
 
+	db.SetMaxOpenConns(my.maxOpenConns)
+	db.SetMaxIdleConns(my.maxIdleConns)
+
 	return db, nil
+}
+
+func (my *Mysql) dsn() string {
+	dsnTmpl := "%s:%s@tcp(%s:%d)/%s?%s"
+	dsn := fmt.Sprintf(dsnTmpl,
+		my.User, my.Password,
+		my.Host, my.Port, my.DbName,
+		my.Extra,
+	)
+
+	return dsn
 }
